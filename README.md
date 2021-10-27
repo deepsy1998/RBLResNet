@@ -45,4 +45,5 @@ pip install torchsummary
 ```
 - **Executing the code**
 - Download the RML2018.01a dataset and use Dataset2018.py file to create the torch datasets for training and testing.
-- Once the datasets are created, change the paths accordingly to execute the main file of both BNN and RBNN APIs. Some of our pretrained models are stored for reference.
+- Once the datasets are created, change the paths in the accordingly to execute the main file of both BNN and RBNN APIs. Some of our pretrained models are stored for reference.
+- Navigate to [./RBNN/cifar](https://github.com/deepsy1998/RBLResNet/tree/main/RBNN/cifar) or [./BNN/BinaryNet.pytorch](https://github.com/deepsy1998/RBLResNet/tree/main/BNN/BinaryNet.pytorch) where you will find the main files and respective .sh files to execute.
