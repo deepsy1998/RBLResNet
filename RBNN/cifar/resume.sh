@@ -1,0 +1,1 @@
+python3 -u main.py --gpus 0 --model MC_net_10blocks --results_dir ../../../Results/CNN_results/dummy --dataset rml --epochs 100 --lr 0.01 -b 256 -bt 128 --Tmin 1e-2 --Tmax 1e1 --lr_type cos --warm_up --resume

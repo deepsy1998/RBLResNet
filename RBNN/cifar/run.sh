@@ -1,0 +1,1 @@
+python3 -u main.py --gpus 0 --model resnet18A_1w1a --results_dir ../../../Results/RBNN_results/RML_resnet_2018.01A_rbnn_v5_4 --dataset rml --epochs 200 --lr 0.01 -b 256 -bt 128 --Tmin 1e-2 --Tmax 1e1 --lr_type cos --warm_up

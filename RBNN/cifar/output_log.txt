@@ -1,0 +1,6 @@
+w1
+torch.cuda.DoubleTensor
+torch.Size([16, 16])
+torch.Size([18, 18])
+torch.Size([32, 16, 18])
+torch.Size([32, 32, 3, 3])

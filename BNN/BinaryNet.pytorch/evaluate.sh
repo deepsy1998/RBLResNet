@@ -1,0 +1,1 @@
+python main_binary.py --model resnet_binary --dataset rml --batch-size 256 -e ./results/BLResNet18/model_best.pth.tar

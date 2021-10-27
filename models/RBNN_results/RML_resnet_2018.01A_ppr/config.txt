@@ -1,0 +1,29 @@
+2021-09-25 09:09:09.331337
+
+results_dir:  ../../../Results/RBNN_results/RML_resnet_2018.01A_ppr
+save:  
+resume:  False
+evaluate:  
+seed:  1234
+model:  rml_resnet_1w1a
+dataset:  rml
+data_path:  /home/data
+type:  torch.cuda.FloatTensor
+gpus:  0
+lr:  0.01
+weight_decay:  0.0001
+momentum:  0.9
+workers:  8
+epochs:  200
+start_epoch:  -1
+batch_size:  256
+batch_size_test:  128
+print_freq:  100
+time_estimate:  1
+rotation_update:  1
+Tmin:  0.01
+Tmax:  10.0
+lr_type:  cos
+lr_decay_step:  
+a32:  False
+warm_up:  True
