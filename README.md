@@ -43,3 +43,6 @@ conda install -c anaconda scipy
 pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
 pip install torchsummary
 ```
+- **Executing the code**
+- Download the RML2018.01a dataset and use Dataset2018.py file to create the torch datasets for training and testing.
+- Once the datasets are created, change the paths accordingly to execute the main file of both BNN and RBNN APIs. Some of our pretrained models are stored for reference.
