@@ -4,8 +4,11 @@ This repository is a research oriented-repository dedicated to the Binarized Res
 The main idea is to release the code of our papers in a very friendly manner such that it cultivates and accelerates further research on this topic. Our codes are based on the following github repos https://github.com/itayhubara/BinaryNet.pytorch and https://github.com/lmbxmu/RBNN.
 If you have any comments, please contact 
 
-Nitin P Shankar 
-ee20d425@smail.iitm.ac.in 
+Nitin P Shankar  (ee20d425@smail.iitm.ac.in )
+
+Deepsayan Sadukhan (ee20s001@smail.iitm.ac.in)
+
+Nancy Nayak (ee17d408@smail.iitm.ac.in)
 
 I hope you enjoy it and good luck with your research.
 
