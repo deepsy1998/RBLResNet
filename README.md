@@ -14,10 +14,11 @@ I hope you enjoy it and good luck with your research.
 
 ## Citing this Repo
 If you use any part of this repo, please consider citing our work:
+Shankar, N.P., Sadhukhan, D., Nayak, N. and Kalyani, S., 2021. Binarized ResNet: Enabling Automatic Modulation Classification at the resource-constrained Edge. arXiv preprint arXiv:2110.14357.
 
 # 1. Our Works and Our Codes
 ## Binarized ResNet
-- The paper is available at __[[Paper]]__
+- The paper is available at __[[Paper]](https://arxiv.org/abs/2110.14357)__
 
 - **About the work:** This work is based on Deep Learning methods used for Automatic Modulation Classification at the Edge with constrained resources. Firstly we propose a new architecture for AMC and then we binarize and rotate the weights and activations to bring down the memory and comutational complexity to the minimal. Next we improve the accuracy by ensembling those architectures.
 
