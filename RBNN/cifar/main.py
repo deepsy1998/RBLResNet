@@ -6,8 +6,6 @@ import random
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
-import models_cifar
-import models_imagenet
 import models_rml
 import numpy as np
 from torch.autograd import Variable
