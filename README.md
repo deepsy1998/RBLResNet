@@ -54,17 +54,9 @@ pip install torchsummary
 -Install the remaining packages
 
 ```
-conda install -c anaconda pandas
-```
-```
-conda install -c anaconda scikit-learn
-```
-```
-conda install -c anaconda seaborn
+conda install -c anaconda pandas seaborn scikit-learn
 ```
 
-
-```
 - **Executing the code**
 - Download the RML2018.01a dataset and use Dataset2018.py file to create the torch datasets for training and testing.
 - Once the datasets are created, change the paths in the accordingly to execute the main file of both BNN and RBNN APIs. Some of our pretrained models are stored for reference.
