@@ -45,7 +45,25 @@ conda install -c anaconda scipy
 - Install dali and torch summary using pip
 ```
 pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110
+```
+
+```
 pip install torchsummary
+```
+
+-Install the remaining packages
+
+```
+conda install -c anaconda pandas
+```
+```
+conda install -c anaconda scikit-learn
+```
+```
+conda install -c anaconda seaborn
+```
+
+
 ```
 - **Executing the code**
 - Download the RML2018.01a dataset and use Dataset2018.py file to create the torch datasets for training and testing.
