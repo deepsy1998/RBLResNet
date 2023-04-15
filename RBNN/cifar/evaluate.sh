@@ -1,7 +1,9 @@
 python -u main.py \
---gpus 1 \
--e ../../../Results/RBNN_results/ \
---model MC_net_10blocks_binary \
+--gpus 0 \
+-e ../../models/ANN_results/ \
+--model_a MC_net_10blocksv2 \
+--model_b MC_net_10blocksv2 \
+--model_c MC_net_10blocksv2 \
 --data_path "../../Dataset" \
 --dataset rml \
--bt 128 \
+-bt 128
