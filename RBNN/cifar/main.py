@@ -8,14 +8,20 @@ import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import models_rml
 import numpy as np
+from absl import app, flags
+from easydict import EasyDict
 from torch.autograd import Variable
 from utils.options import args
 from utils.common import *
 from modules import *
 from datetime import datetime 
 from torchsummary import summary
+from cleverhans.torch.attacks.fast_gradient_method import fast_gradient_method
+from cleverhans.torch.attacks.projected_gradient_descent import (
+    projected_gradient_descent,
+)
 import dataset
-
+from attacks import *
 
 def main():
     global args, best_prec1, conv_modules
@@ -23,7 +29,7 @@ def main():
 
     random.seed(args.seed)
     if args.evaluate:
-        args.results_dir = '/tmp'
+        args.results_dir = '~/tmp'
     save_path = os.path.join(args.results_dir, args.save)
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -63,32 +69,63 @@ def main():
     elif args.dataset=='rml': 
         num_classes=24
         model_zoo = 'models_rml.'
-
+# ######################################################################## FOR BAGGING #####################################################################################################
     if len(args.gpus)==1:
-        model = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
-        model1 = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
-        model2 = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
-        model3 = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
+        model = eval(model_zoo+args.model_a)(num_classes=num_classes).cuda()
+        model1 = eval(model_zoo+args.model_b)(num_classes=num_classes).cuda()
+        model2 = eval(model_zoo+args.model_c)(num_classes=num_classes).cuda()
+        model3 = eval(model_zoo+args.model_c)(num_classes=num_classes).cuda()
 
     else: 
-        model = nn.DataParallel(eval(model_zoo+args.model)(num_classes=num_classes))
+        model = torch.nn.DataParallel(eval(model_zoo+args.model)(num_classes=num_classes), device_ids=[0])
+        model1 = torch.nn.DataParallel(eval(model_zoo+args.model)(num_classes=num_classes), device_ids=[0])
+        model2 = torch.nn.DataParallel(eval(model_zoo+args.model)(num_classes=num_classes), device_ids=[0])
+        model3 = torch.nn.DataParallel(eval(model_zoo+args.model)(num_classes=num_classes), device_ids=[0])
+########################################################################## FOR CLUSTERING #############################################################################################
+    # if len(args.gpus)==1:
+    #         model  = eval(model_zoo+args.model_a)(num_classes=3).cuda()
+    #         model1 = eval(model_zoo+args.model_a)(num_classes=8).cuda()
+    #         model2 = eval(model_zoo+args.model_b+"_K")(num_classes=8).cuda()
+    #         #model2 = eval(model_zoo+args.model_c)(num_classes=8).cuda()
+    #         model3 = eval(model_zoo+args.model_c)(num_classes=8).cuda()
+            
+    #         #model4 = eval(model_zoo+args.model)(num_classes=8).cuda()
+
+
+    #         # model  = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
+
+    #         # model  = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
+    #         # model1 = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
+    #         # model2 = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
+    #         # model3 = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
+    #         # model4 = eval(model_zoo+args.model)(num_classes=num_classes).cuda()
+    # else: 
+    #     model = nn.DataParallel(eval(model_zoo+args.model)(num_classes=num_classes))
     if not args.resume:
-        logging.info("creating model %s", args.model)
-        logging.info("model structure: %s", model)
+        logging.info("creating model %s", args.model_a)
+        #logging.info("model structure: %s", model)
         num_parameters = sum([l.nelement() for l in model.parameters()])
+        logging.info("number of parameters: %d", num_parameters)
+        logging.info("creating model %s", args.model_b)
+        #logging.info("model structure: %s", model1)
+        num_parameters = sum([l.nelement() for l in model1.parameters()])
+        logging.info("number of parameters: %d", num_parameters)
+        logging.info("creating model %s", args.model_c)
+        #logging.info("model structure: %s", model1)
+        num_parameters = sum([l.nelement() for l in model2.parameters()])
         logging.info("number of parameters: %d", num_parameters)
 
     # evaluate
     if args.evaluate:
-        if not os.path.isfile(os.path.join(args.evaluate,'MC_net_10blocks/model_best.pth.tar')):
+        if not os.path.isfile(os.path.join(args.evaluate,'RML_resnet_2018.01A_ppr/model_best.pth.tar')):
             logging.error('invalid checkpoint: {}'.format(args.evaluate))
         else: 
 
             print(args.evaluate)
-            checkpoint = torch.load(os.path.join(args.evaluate,'MC_net_10blocks/model_best.pth.tar'))
-            checkpoint1 = torch.load(os.path.join(args.evaluate,'MC_net_10blocks/model_best.pth.tar'))
-            checkpoint2 = torch.load(os.path.join(args.evaluate,'MC_net_10blocks/model_best.pth.tar'))
-            checkpoint3 = torch.load(os.path.join(args.evaluate,'MC_net_10blocks/model_best.pth.tar'))
+            checkpoint = torch.load(os.path.join(args.evaluate,'RML_resnet_2018.01A_ppr/model_best.pth.tar'))
+            checkpoint1 = torch.load(os.path.join(args.evaluate,'RML_resnet_2018.01A_ppr/model_best.pth.tar'))
+            checkpoint2 = torch.load(os.path.join(args.evaluate,'RML_resnet_2018.01A_ppr/model_best.pth.tar'))
+            checkpoint3 = torch.load(os.path.join(args.evaluate,'RML_resnet_2018.01A_ppr/model_best.pth.tar'))
             
             if len(args.gpus)>1:
                 checkpoint['state_dict'] = dataset.add_module_fromdict(checkpoint['state_dict'])
@@ -124,9 +161,71 @@ def main():
     criterion = nn.CrossEntropyLoss().cuda()
     criterion = criterion.type(args.type)
     model = model.type(args.type)
+    ####################################################################################################################################################################################################################
+    #
+    #---------------------------------------------------------------------UN COMMENT THE PART WHICH YOU NEED , COMMENT THE REST---------------------------------------------------
+    #
+    #
+    ################################################----------------------NO ATTACK NO ENSEMBLE JUST CLEAN ACCURACY--------------------------#####################################################################
+    
+    # if args.evaluate:
+    #     val_loader = dataset.load_data(
+    #                 type='val',
+    #                 dataset=args.dataset, 
+    #                 data_path=args.data_path,
+    #                 batch_size=args.batch_size, 
+    #                 batch_size_test=args.batch_size_test, 
+    #                 num_workers=args.workers)
 
+    #     with torch.no_grad():
+    #         val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0)
+    #         # val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0)
+
+    #     logging.info('\n Validation Loss {val_loss:.4f} \t' 'Validation Prec@1 {val_prec1:.3f} \t' 'Validation Prec@5 {val_prec5:.3f} \n'
+    #                  .format(val_loss=val_loss, val_prec1=val_prec1, val_prec5=val_prec5))
+    #     return
+    
+    ################################################----------------------ENSEMBLE ONLY--------------------------#####################################################################
+    
+    # if args.evaluate:
+    #     val_loader = dataset.load_data(
+    #                 type='val',
+    #                 dataset=args.dataset, 
+    #                 data_path=args.data_path,
+    #                 batch_size=args.batch_size, 
+    #                 batch_size_test=args.batch_size_test, 
+    #                 num_workers=args.workers)
+
+    #     with torch.no_grad():
+    #         val_loss, val_prec1, val_prec5 = validate_ens(val_loader, model, model1, model2, model3, criterion, 0)
+    #         # val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0)
+
+    #     logging.info('\n Validation Loss {val_loss:.4f} \t' 'Validation Prec@1 {val_prec1:.3f} \t' 'Validation Prec@5 {val_prec5:.3f} \n'
+    #                  .format(val_loss=val_loss, val_prec1=val_prec1, val_prec5=val_prec5))
+    #     return
+    
+    ################################################----------------------ATTACK +  ENSEMBLE--------------------------#####################################################################
+    
+    # if args.evaluate:
+    #     val_loader = dataset.load_data(
+    #                 type='val',
+    #                 dataset=args.dataset, 
+    #                 data_path=args.data_path,
+    #                 batch_size=args.batch_size, 
+    #                 batch_size_test=args.batch_size_test, 
+    #                 num_workers=args.workers)
+
+        
+    #     val_loss, val_prec1, val_prec5 = validate_attack_ens(val_loader, model, model1,model2,model3,criterion, 0)
+    #         # val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0)
+
+    #     logging.info('\n Validation Loss {val_loss:.4f} \t' 'Validation Prec@1 {val_prec1:.3f} \t' 'Validation Prec@5 {val_prec5:.3f} \n'
+    #                  .format(val_loss=val_loss, val_prec1=val_prec1, val_prec5=val_prec5))
+    #     return
+    ################################################----------------------ATTACK ONLY--------------------------#####################################################################
+    
     if args.evaluate:
-        val_loader = dataset.load_data(
+        attack_loader = dataset.load_data(
                     type='val',
                     dataset=args.dataset, 
                     data_path=args.data_path,
@@ -134,14 +233,32 @@ def main():
                     batch_size_test=args.batch_size_test, 
                     num_workers=args.workers)
 
-        with torch.no_grad():
-            val_loss, val_prec1, val_prec5 = validate_ens(val_loader, model, model1, model2, model3, criterion, 0)
+        
+        val_loss, val_prec1, val_prec5 = validate_attack(attack_loader, model, criterion, 0)
             # val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0)
 
         logging.info('\n Validation Loss {val_loss:.4f} \t' 'Validation Prec@1 {val_prec1:.3f} \t' 'Validation Prec@5 {val_prec5:.3f} \n'
                      .format(val_loss=val_loss, val_prec1=val_prec1, val_prec5=val_prec5))
         return
+    
+    ################################################----------------------ATTACK + LOCAL LIP CONST--------------------------#####################################################################
+    # if args.evaluate:
+    #     attack_loader = dataset.load_data(
+    #                 type='val',
+    #                 dataset=args.dataset, 
+    #                 data_path=args.data_path,
+    #                 batch_size=args.batch_size, 
+    #                 batch_size_test=args.batch_size_test, 
+    #                 num_workers=args.workers)
 
+        
+    #     val_loss, val_prec1, val_prec5 ,llipc= validate_attack(attack_loader, model, criterion, 0)
+    #         # val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0)
+
+    #     logging.info('\n Validation Loss {val_loss:.4f} \t' 'Validation Prec@1 {val_prec1:.3f} \t' 'Validation Prec@5 {val_prec5:.3f} \t' 'Local Lipscitz Constant {llipc:.3f} \n'
+    #                  .format(val_loss=val_loss, val_prec1=val_prec1, val_prec5=val_prec5, llipc=llipc))
+    #     return
+    
     if args.dataset=='imagenet':
         train_loader = dataset.get_imagenet(
                         type='train',
@@ -297,10 +414,11 @@ def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=Non
             target = target.cuda(non_blocking=True)
         input_var = Variable(inputs.type(args.type))
         target_var = Variable(target)
-        
+        #x_fgm = fast_gradient_method(model, input_var, 0, np.inf) #set eps=0.0 for clean data
         # compute output
         output = model(input_var)
-        # print(target_var.size())
+        #print(target_var.size())
+        #print(input_var.data)
 
         # target_var = torch.argmax(target_var, axis=1)
         loss = criterion(output, target_var)
@@ -343,6 +461,174 @@ def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=Non
                              top1=top1, top5=top5))
 
     return losses.avg, top1.avg, top5.avg
+def forward_attack(data_loader, model, criterion, epoch=0, training=True, optimizer=None):
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+
+    end = time.time()
+    for i, (inputs, target) in enumerate(data_loader):
+        # measure data loading time
+        target = target.long()
+
+        data_time.update(time.time() - end)
+        if i==1 and training:
+            for module in conv_modules:
+                module.epoch=-1
+        if args.gpus is not None:
+            inputs = inputs.cuda(non_blocking=True)
+            target = target.cuda(non_blocking=True)
+        input_var = Variable(inputs.type(args.type))
+        target_var = Variable(target)
+
+        #input_var.requires_grad = True
+        #
+        #x_fgm = fast_gradient_method(model, input_var, 0.05, np.inf) #set eps=0.0 for clean data
+        x_pgd = projected_gradient_descent(model, input_var,0.005,0.001,10,np.inf) #set eps=0.0 for clean data
+                # compute output
+        output = model(x_pgd)
+    
+
+        loss = criterion(output, target_var)
+       
+        
+        if type(output) is list:
+            output = output[0]
+        
+        # measure accuracy and record loss
+        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+
+        losses.update(loss.data.item(), inputs.size(0))
+        top1.update(prec1.item(), inputs.size(0))
+        top5.update(prec5.item(), inputs.size(0))
+
+        if training:
+            # compute gradient
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if i % args.print_freq == 0:
+            logging.info('{phase} - Epoch: [{0}][{1}/{2}]\t'
+                         'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                         'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                         'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                         'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                         'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                             epoch, i, len(data_loader),
+                             phase='TRAINING' if training else 'EVALUATING',
+                             batch_time=batch_time,
+                             data_time=data_time, loss=losses,
+                             top1=top1, top5=top5))
+
+    return losses.avg, top1.avg, top5.avg
+
+def forward_attack_llc(data_loader, model, criterion, epoch=0, training=True, optimizer=None):
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+
+    end = time.time()
+    total_loss = 0.0
+    length=0.0
+    for i, (inputs, target) in enumerate(data_loader):
+        # measure data loading time
+        target = target.long()
+        length+=1
+        data_time.update(time.time() - end)
+        if i==1 and training:
+            for module in conv_modules:
+                module.epoch=-1
+        if args.gpus is not None:
+            inputs = inputs.cuda(non_blocking=True)
+            target = target.cuda(non_blocking=True)
+        input_var = Variable(inputs.type(args.type))
+        target_var = Variable(target)
+        #print(np.shape(input_var))
+        #input_var.requires_grad = True
+        x_fgm = fast_gradient_method(model, input_var, 0.0, np.inf) #set eps=0.0 for clean data
+        #x_pgd = projected_gradient_descent(model, input_var,0.0,0.01,40,np.inf) #set eps=0.0 for clean data
+                # compute output
+        output = model(x_fgm)
+        loss = criterion(output, target_var)
+        #PART FOR LLC COMPUTATION------------------------------------------------------------------
+        #INITIALIZE PARAMETERS
+        device="cuda"
+        x=input_var
+        step_size=0.001
+        epsilon=0.01
+        top_norm=1
+        btm_norm=np.inf
+        perturb_steps=10
+        
+        
+        if btm_norm in [1, 2, np.inf]:
+            x_adv = x + 0.001 * torch.randn(x.shape).to(device)
+
+            # Setup optimizers
+            optimizer = optim.SGD([x_adv], lr=step_size)
+
+            for _ in range(perturb_steps):
+                x_adv.requires_grad_(True)
+                optimizer.zero_grad()
+                with torch.enable_grad():
+                    loss_llc = (-1) * local_lip(model, x, x_adv, top_norm, btm_norm)
+                loss_llc.backward()
+                # renorming gradient
+                eta = step_size * x_adv.grad.data.sign().detach()
+                x_adv = x_adv.data.detach() + eta.detach()
+                eta = torch.clamp(x_adv.data - x.data, -epsilon, epsilon)
+                x_adv = x.data.detach() + eta.detach()
+                x_adv = torch.clamp(x_adv, 0, 1.0)
+        else:
+            raise ValueError(f"Unsupported norm {btm_norm}")
+
+        total_loss += local_lip(model, x, x_adv, top_norm, btm_norm, reduction='sum').item()
+
+    
+        if type(output) is list:
+            output = output[0]
+        
+        # measure accuracy and record loss
+        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+
+        losses.update(loss.data.item(), inputs.size(0))
+        top1.update(prec1.item(), inputs.size(0))
+        top5.update(prec5.item(), inputs.size(0))
+
+        if training:
+            # compute gradient
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if i % args.print_freq == 0:
+            logging.info('{phase} - Epoch: [{0}][{1}/{2}]\t'
+                         'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                         'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                         'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                         'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                         'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                             epoch, i, len(data_loader),
+                             phase='TRAINING' if training else 'EVALUATING',
+                             batch_time=batch_time,
+                             data_time=data_time, loss=losses,
+                             top1=top1, top5=top5))
+    LLC=total_loss/(length*128)
+    print(LLC)
+    return losses.avg, top1.avg, top5.avg,LLC
 
 def forward_val(data_loader, model, model1, model2, model3, criterion, epoch=0, training=False, optimizer=None):
     batch_time = AverageMeter()
@@ -363,15 +649,43 @@ def forward_val(data_loader, model, model1, model2, model3, criterion, epoch=0, 
             target = target.cuda(non_blocking=True)
         input_var = Variable(inputs.type(args.type))
         target_var = Variable(target)
-        
+        #print(target_var.size())
+        #print(input_var.data)
+
         # compute output
         output = model(input_var)
         output1 = model1(input_var)
         output2 = model2(input_var)
         output3 = model3(input_var)
-        # print(target_var.size())
 
-        # target_var = torch.argmax(target_var, axis=1)
+        ##################################################################################### FOR CLUSTERING ###########################################################################
+
+        # max, indices = torch.max(output, 1)
+        # output_2 = torch.zeros([len(output),24]).to(torch.device('cuda:0'))
+        # pad = torch.tensor(-1e4).to(torch.device('cuda:0'))*torch.ones([1,8]).to(torch.device('cuda:0'))
+        # pad = pad.squeeze()
+
+        # for J in range(len(output)):
+        #     if indices[J]==0:
+        #         output_2[J,:] = torch.cat((output1[J,:], pad, pad)) 
+        #     elif indices[J]==1:
+        #         output_2[J,:] = torch.cat((pad, output2[J,:], pad)) 
+        #     elif indices[J]==2:
+        #         output_2[J,:] = torch.cat((pad, pad, output3[J,:])) 
+        
+        # loss = criterion(output_2, target_var)
+
+        # prec1, prec5 = accuracy(output_2.data, target, topk=(1, 5))
+
+        # # losses.update(loss.data.item(), inputs.size(0))
+        # # top1.update(prec1.item(), inputs.size(0))
+        # # top5.update(prec5.item(), inputs.size(0))
+        # # # print(target_var.size())
+
+        # # # target_var = torch.argmax(target_var, axis=1)
+        ##################################################################################### FOR BAGGING ###########################################################################
+
+
         loss = criterion(output, target_var)
         loss1 = criterion(output1, target_var)
         loss2 = criterion(output2, target_var)
@@ -420,6 +734,114 @@ def forward_val(data_loader, model, model1, model2, model3, criterion, epoch=0, 
 
     return losses.avg, top1.avg, top5.avg
 
+def forward_attack_ens(data_loader,model, model1, model2, model3, criterion, epoch=0, training=True, optimizer=None):
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    top5 = AverageMeter()
+
+    end = time.time()
+    for i, (inputs, target) in enumerate(data_loader):
+        # measure data loading time
+        target = target.long()
+
+        data_time.update(time.time() - end)
+
+        if args.gpus is not None:
+            inputs = inputs.cuda(non_blocking=True)
+            target = target.cuda(non_blocking=True)
+        input_var = Variable(inputs.type(args.type))
+        target_var = Variable(target)
+        #print(target_var.size())
+        #print(input_var.data)
+        #x_fgm_avg=input_var
+        #for u in range(5):
+        #x_fgm = fast_gradient_method(model, input_var, 0.00, np.inf)
+        x_pgd = projected_gradient_descent(model, input_var,0.005,0.001,10,np.inf) #set eps=0.0 for clean data
+        x_fgm1 = fast_gradient_method(model1, input_var, 0.0, np.inf)
+        x_fgm2 = fast_gradient_method(model2, input_var, 0.0, np.inf)
+        x_fgm3 = fast_gradient_method(model3, input_var, 0.0, np.inf)
+        #x_fgm_avg=(x_fgm+x_fgm1+x_fgm2+x_fgm3)/4
+        #x_pgd3 = projected_gradient_descent(model3, input_var,0.0,0.004,10,np.inf) #set eps=0.0 for clean data
+        # compute output
+        #x_fgm_avg=(x_fgm+x_fgm3)/2
+        #x_pgd_avg=(x_pgd+x_pgd3)/2
+        output = model(x_fgm1)
+        output1 = model1(x_fgm1)
+        output2 = model2(x_fgm1)
+        output3 = model3(x_fgm1)
+         ##################################################################################### FOR CLUSTERING ###########################################################################
+
+        max, indices = torch.max(output, 1)
+        output_2 = torch.zeros([len(output),24]).to(torch.device('cuda:0'))
+        pad = torch.tensor(-1e4).to(torch.device('cuda:0'))*torch.ones([1,8]).to(torch.device('cuda:0'))
+        pad = pad.squeeze()
+
+        for J in range(len(output)):
+            if indices[J]==0:
+                output_2[J,:] = torch.cat((output1[J,:], pad, pad)) 
+            elif indices[J]==1:
+                output_2[J,:] = torch.cat((pad, output2[J,:], pad)) 
+            elif indices[J]==2:
+                output_2[J,:] = torch.cat((pad, pad, output3[J,:])) 
+        
+        loss = criterion(output_2, target_var)
+
+        prec1, prec5 = accuracy(output_2.data, target, topk=(1, 5))
+##################################################################################### FOR BAGGING ###########################################################################
+
+        # # print(target_var.size())
+
+        # # target_var = torch.argmax(target_var, axis=1)
+        # loss = criterion(output, target_var)
+        # loss1 = criterion(output1, target_var)
+        # loss2 = criterion(output2, target_var)
+        # loss3 = criterion(output3, target_var)
+
+
+        # if type(output) is list:
+        #     output = output[0]
+        
+        # if type(output) is list:
+        #     output1 = output1[0]
+
+        # if type(output) is list:
+        #     output2 = output2[0]
+
+        # if type(output) is list:
+        #    output3 = output3[0]
+        # # print(output.size())
+        # # print(target.size())
+        # # print(target_var.size())
+        # # print(output.data.size())
+        # # measure accuracy and record loss
+        # prec1, prec5 = accuracy_val( output.data, output1.data, output2.data, output3.data,  target, topk=(1, 5))
+
+        losses.update(loss.data.item(), inputs.size(0))
+        top1.update(prec1.item(), inputs.size(0))
+        top5.update(prec5.item(), inputs.size(0))
+        
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        if i % args.print_freq == 0:
+            logging.info('{phase} - Epoch: [{0}][{1}/{2}]\t'
+                         'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
+                         'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
+                         'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
+                         'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
+                         'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
+                             epoch, i, len(data_loader),
+                             phase= 'EVALUATING',
+                             batch_time=batch_time,
+                             data_time=data_time, loss=losses,
+                             top1=top1, top5=top5))
+
+    return losses.avg, top1.avg, top5.avg
+
 
 def train(data_loader, model, criterion, epoch, optimizer):
     model.train()
@@ -431,6 +853,10 @@ def validate(data_loader, model, criterion, epoch):
     return forward(data_loader, model, criterion, epoch,
                    training=False, optimizer=None)
 
+def validate_attack(data_loader, model, criterion, epoch):
+    model.eval()
+    return forward_attack(data_loader, model, criterion, epoch,
+                   training=False, optimizer=None)
 
 def validate_ens(data_loader, model, model1, model2, model3, criterion, epoch):
     model.eval()
@@ -440,6 +866,18 @@ def validate_ens(data_loader, model, model1, model2, model3, criterion, epoch):
 
     return forward_val(data_loader, model, model1, model2, model3, criterion, epoch, training=False, optimizer=None)
 
+def validate_attack_ens(data_loader, model, model1, model2, model3, criterion, epoch):
+    model.eval()
+    model1.eval()
+    model2.eval()
+    model3.eval()
+   
 
+    return forward_attack_ens(data_loader, model, model1, model2,model3, criterion, epoch, training=False, optimizer=None)
+
+
+
+    
 if __name__ == '__main__':
     main()
+
