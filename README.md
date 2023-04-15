@@ -1,4 +1,4 @@
-# Binarized ResNet: Enabling Automatic ModulationClassification at the resource-constrained Edge
+# Binarized ResNet: Enabling Robust Automatic ModulationClassification at the resource-constrained Edge
 This repository is a research oriented-repository dedicated to the Binarized ResNet: Enabling Automatic ModulationClassification at the resource-constrained Edge. 
 
 The main idea is to release the code of our papers in a very friendly manner such that it cultivates and accelerates further research on this topic. Our codes are based on the following github repos https://github.com/itayhubara/BinaryNet.pytorch and https://github.com/lmbxmu/RBNN.
