@@ -40,15 +40,26 @@ parser.add_argument(
 
 # Model
 parser.add_argument(
-    '--model',
-    '-a',
+    '--model_a',
     metavar='MODEL',
     default='resnet20_bireal_1w1a',
     help='model architecture ')
 
 parser.add_argument(
+    '--model_b',
+    metavar='MODEL',
+    default='resnet20_bireal_1w1a',
+    help='model architecture ')
+
+parser.add_argument(
+    '--model_c',
+    metavar='MODEL',
+    default='resnet20_bireal_1w1a',
+    help='model architecture ')
+    
+parser.add_argument(
     '--dataset',
-    default='cifar10',
+    default=.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 'cifar10',
     type=str,
     help='dataset, default:cifar10')
 
