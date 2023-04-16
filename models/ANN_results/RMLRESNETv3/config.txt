@@ -1,0 +1,29 @@
+2023-01-20 15:55:15.102812
+
+results_dir:  ../../models/CNN_results/RMLRESNETv3
+save:  
+resume:  False
+evaluate:  
+seed:  1234
+model:  rml_resnet
+dataset:  rml
+data_path:  /home/nitin/Research/RML_Research/Dataset/Clustering/
+type:  torch.cuda.FloatTensor
+gpus:  1
+lr:  0.0001
+weight_decay:  0.0001
+momentum:  0.9
+workers:  8
+epochs:  100
+start_epoch:  -1
+batch_size:  512
+batch_size_test:  512
+print_freq:  100
+time_estimate:  1
+rotation_update:  1
+Tmin:  0.01
+Tmax:  10.0
+lr_type:  cos
+lr_decay_step:  
+a32:  False
+warm_up:  True
